@@ -19,6 +19,7 @@ task UmiToolsExtractTask {
 	
     Boolean inputRead2Defined = defined(inputRead2)
     Boolean r24ntBarcodeExtractionRegexDefined = defined(r24ntBarcodeExtractionRegex)
+
 	command <<<
         if [ ${inputRead2Defined} ] && [ ${r24ntBarcodeExtractionRegexDefined} ]; then
             echo "Running R1+R2 Mode"
@@ -86,6 +87,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         Int barcodeHamming
     }
 
+    # Extract relevant sequences using UMI tools
     call UmiToolsExtractTask {
         input:
             inputRead1=rawFastqR1,
@@ -95,30 +97,22 @@ workflow CrisprSensorPreprocessing_Workflow {
             sampleName=sampleName
     }
 	
-	if(defined(i5IndexStringTextFile)){
-		Array[String] i5IndexStringTextFileList = read_lines(select_first([i5IndexStringTextFile]))
-	}
-	Array[String]? i5IndexListFinal = select_first([i5IndexList, i5IndexStringTextFileList])
-
-	if(defined(barcodeIndexStringTextFile)){
-        Array[String] barcodeIndexStringTextFileList = read_lines(select_first([barcodeIndexStringTextFile]))
-    }
-	Array[String]? barcodeIndexListFinal = select_first([barcodeIndexList, barcodeIndexStringTextFileList])
-    
-
+    # Demultiplex the UMI tools result
     call demultiplex.BBMapDemultiplexOrchestratorWorkflow as demultiplexWorkflow {
         input:
             inputRead1=UmiToolsExtractTask.outputRead1,
             inputRead2=UmiToolsExtractTask.outputRead2,
-            i5IndexListFinal=i5IndexListFinal,
-            barcodeIndexListFinal=barcodeIndexListFinal,
+            i5IndexStringTextFile=i5IndexStringTextFile,
+            i5IndexList=i5IndexList,
+            barcodeIndexStringTextFile=barcodeIndexStringTextFile,
+            barcodeIndexList=barcodeIndexList,
             i5Hamming=i5Hamming,
             barcodeHamming=barcodeHamming,
             sampleName=sampleName
     }
 
 	# TODO: Since we have a MAP, perhaps someone can input a TSV of the sample sheet, then we can return a final table with the samples attached. Or we can return a table without the sample sheet.
-    # LEFTOFF: Just finished draft, now need to womtools validate and test.
+
     output {
         File umiToolsExtractedOutputRead1 = UmiToolsExtractTask.outputRead1
         File? umiToolsExtractedOutputRead2 = UmiToolsExtractTask.outputRead2
@@ -131,7 +125,6 @@ workflow CrisprSensorPreprocessing_Workflow {
         DemultiplexResult? output_DemultiplexResult_i5 = demultiplexWorkflow.output_DemultiplexResult_i5
         Map[String, Pair[IndexPair, DemultiplexResult]]? output_readIndexMap_i5_Barcode_Map = demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map
         DemultiplexResult? output_DemultiplexResult_Barcode = demultiplexWorkflow.output_DemultiplexResult_Barcode
-        
     }
 }
 

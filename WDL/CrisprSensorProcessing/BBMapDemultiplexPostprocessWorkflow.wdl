@@ -34,8 +34,6 @@ workflow BBMapDemultiplexRunnerPostprocessWorkflow {
     }
 
 
-
-
     # Create a pairing of the index to the R1 and R2 files as an IndexPair Struct
     if (defined(demultiplexedOutputR2FileMap)){
         Map[String,File] demultiplexedOutputR2FileMap_defined = select_first([demultiplexedOutputR2FileMap])
