@@ -21,40 +21,40 @@ task UmiToolsExtractTask {
     Boolean r24ntBarcodeExtractionRegexDefined = defined(r24ntBarcodeExtractionRegex)
 
 	command <<<
-        if [ ${inputRead2Defined} ] && [ ${r24ntBarcodeExtractionRegexDefined} ]; then
+        if [ ~{inputRead2Defined} ] && [ ~{r24ntBarcodeExtractionRegexDefined} ]; then
             echo "Running R1+R2 Mode"
             umi_tools extract --extract-method=regex \
-            --stdin ${inputRead1} \
-            --read2-in ${inputRead2} \
-            --bc-pattern=${r1U6BarcodeExtractionRegex} \
-            --bc-pattern2=${r24ntBarcodeExtractionRegex} \
-            -L ${logFileFn} \
-            --stdout ${outputRead1Fn} \
-            --read2-out ${outputRead2Fn} \
-            --filtered-out=${outputFilteredRead1Fn} \
-            --filtered-out2=${outputFilteredRead2Fn}
+            --stdin ~{inputRead1} \
+            --read2-in ~{inputRead2} \
+            --bc-pattern ~{r1U6BarcodeExtractionRegex} \
+            --bc-pattern2 ~{r24ntBarcodeExtractionRegex} \
+            -L ~{logFileFn} \
+            --stdout ~{outputRead1Fn} \
+            --read2-out ~{outputRead2Fn} \
+            --filtered-out ~{outputFilteredRead1Fn} \
+            --filtered-out2 ~{outputFilteredRead2Fn}
             echo "Completed"
         else
             echo "Running R1-only Mode"
             umi_tools extract --extract-method=regex \
-            --stdin ${inputRead1} \
-            --bc-pattern=${r1U6BarcodeExtractionRegex} \
-            -L ${logFileFn} \
-            --stdout ${outputRead1Fn} \
-            --filtered-out=${outputFilteredRead1Fn}
+            --stdin ~{inputRead1} \
+            --bc-pattern=~{r1U6BarcodeExtractionRegex} \
+            -L ~{logFileFn} \
+            --stdout ~{outputRead1Fn} \
+            --filtered-out ~{outputFilteredRead1Fn}
             echo "Completed"
         fi
 
-        awk '{print $1/4}' <(wc -l < ${outputRead1Fn}) > output_read_count.txt
-        awk '{print $1/4}' <(wc -l < ${outputFilteredRead1Fn}) > output_filtered_read_count.txt
+        awk '{print $1/4}' <(wc -l < ~{outputRead1Fn}) > output_read_count.txt
+        awk '{print $1/4}' <(wc -l < ~{outputFilteredRead1Fn}) > output_filtered_read_count.txt
 
         echo "Output read count:"
         cat output_read_count.txt
-        echo"Output filtered read count:"
+        echo "Output filtered read count:"
         cat output_filtered_read_count.txt
     >>>
 
-    	output {
+    output {
 		File outputRead1="${outputRead1Fn}"
 		File? outputRead2="${outputRead2Fn}"
 		File outputFilteredRead1="${outputFilteredRead1Fn}"
@@ -122,9 +122,9 @@ workflow CrisprSensorPreprocessing_Workflow {
         Float umiToolsExtractOutputRead1ReadCount = UmiToolsExtractTask.outputRead1ReadCount
         Float umiToolsExtractOutputFilteredRead1ReadCount = UmiToolsExtractTask.outputFilteredRead1ReadCount
 
-        DemultiplexResult? output_DemultiplexResult_i5 = demultiplexWorkflow.output_DemultiplexResult_i5
-        Map[String, Pair[IndexPair, DemultiplexResult]]? output_readIndexMap_i5_Barcode_Map = demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map
-        DemultiplexResult? output_DemultiplexResult_Barcode = demultiplexWorkflow.output_DemultiplexResult_Barcode
+       Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_i5 = demultiplexWorkflow.output_DemultiplexedResult_i5
+        Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]]? output_readIndexMap_i5_Barcode_Map = demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map
+        Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_Barcode = demultiplexWorkflow.output_DemultiplexedResult_Barcode
     }
 }
 

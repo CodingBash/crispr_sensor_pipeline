@@ -1,15 +1,29 @@
 version development
 
+
 struct IndexPair {
     String index
     File read1
     File? read2
 }
 
+struct UndeterminedFiles {
+    File undeterminedR1File
+    File? undeterminedR2File
+}
+
+struct DemultiplexedFiles {
+    Map[String, IndexPair] demultiplexedFiles
+}
+
+
+
 workflow BBMapDemultiplexRunnerPostprocessWorkflow {
     input {
         Array[File] demultiplexedOutputR1Files
         Array[File]? demultiplexedOutputR2Files
+        File undeterminedR1File
+        File? undeterminedR2File
         String rootDemultiplexedOutputFilenamePattern
     }
 
@@ -68,8 +82,19 @@ workflow BBMapDemultiplexRunnerPostprocessWorkflow {
     Array[Pair[String, IndexPair]] readIndexPairList = select_first([readIndexPair_PE, readIndexPair_SE])
     Map[String, IndexPair] readIndexMap = as_map(readIndexPairList)
     
+    # Create final object
+    UndeterminedFiles undeterminedFiles = {
+            "undeterminedR1File": undeterminedR1File,
+            "undeterminedR2File": undeterminedR2File
+    }
+    DemultiplexedFiles demultiplexedFiles = {
+            "demultiplexedFiles": readIndexMap
+    }
+    
+    Pair[DemultiplexedFiles, UndeterminedFiles] demultiplexedResults = (demultiplexedFiles, undeterminedFiles)
+   
     output {
-        Map[String, IndexPair] output_readIndexMap = readIndexMap
+         Pair[DemultiplexedFiles, UndeterminedFiles] output_demultiplexedResults = demultiplexedResults
     }
    
  }
