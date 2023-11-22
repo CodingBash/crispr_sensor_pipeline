@@ -69,6 +69,53 @@ task UmiToolsExtractTask {
 	}
 }
 
+task GuideCount {
+    input {
+        DemultiplexedFiles demultiplexedFiles
+        File whitelistGuideReporterTsv
+        String? umiToolsHeaderBarcodeRegex
+        String? umiToolsUmiPatternRegex
+        Int? surrogateHammingThresholdStrict
+        Int? barcodeHammingThresholdStrict
+        Int? protospacerHammingThresholdStrict
+    }
+
+    IndexPair indexPair = demultiplexedFiles.demultiplexedFiles.right
+    File read1 = indexPair.read1
+    File? read2 = indexPair.read2
+
+
+    command <<<
+        python <<CODE
+            import crispr_ambiguous_mapping
+            import pandas as pd
+            
+            whitelist_guide_reporter_df = pd.read_table("~{whitelistGuideReporterTsv}")
+
+            result = crispr_ambiguous_mapping.mp.get_whitelist_reporter_counts_from_umitools_output(
+                whitelist_guide_reporter_df=whitelist_guide_reporter_df, 
+                fastq_r1_fn='~{read1}', 
+                fastq_r2_fn=~{if defined(read2) then "'~{read2}'" else "None" },
+                barcode_pattern_regex=~{if defined(umiToolsHeaderBarcodeRegex) then "'~{umiToolsHeaderBarcodeRegex}'" else "None" },
+                umi_pattern_regex=~{if defined(umiToolsUmiPatternRegex) then "'~{umiToolsUmiPatternRegex}'" else "None" },
+                surrogate_hamming_threshold_strict=~{if defined(surrogateHammingThresholdStrict) then "~{surrogateHammingThresholdStrict}" else "None" },
+                barcode_hamming_threshold_strict =~{if defined(barcodeHammingThresholdStrict) then "~{barcodeHammingThresholdStrict}" else "None" },
+                protospacer_hamming_threshold_strict=~{if defined(protospacerHammingThresholdStrict) then "~{protospacerHammingThresholdStrict}" else "None" },
+                cores=1)
+
+
+            crispr_ambiguous_mapping.ut.save_or_load_pickle("./", "result", py_object = result, date_string="")
+        CODE
+    >>>
+
+    output {
+        File count_result = "result_.pickle"
+    }
+
+    runtime {
+        docker: "pinellolab/crispr_selfedit_mapping:release-0.0.106a"
+    }
+}
 
 workflow CrisprSensorPreprocessing_Workflow {
     input {
@@ -111,6 +158,32 @@ workflow CrisprSensorPreprocessing_Workflow {
             sampleName=sampleName
     }
 
+    if defined(demultiplexWorkflow.output_DemultiplexedResult_i5){
+        Pair[DemultiplexedFiles, UndeterminedFiles] output_DemultiplexedResult_i5_defined = select_first([demultiplexWorkflow.output_DemultiplexedResult_i5])
+        call demultiplex.BBMapDemultiplexOrchestratorWorkflow as demultiplexWorkflow {
+            input:
+                demultiplexedFiles=demultiplexedFiles,
+                whitelistGuideReporterTsv=whitelistGuideReporterTsv,
+                umiToolsHeaderBarcodeRegex=umiToolsHeaderBarcodeRegex,
+                umiToolsUmiPatternRegex=umiToolsUmiPatternRegex,
+                surrogateHammingThresholdStrict=surrogateHammingThresholdStrict,
+                barcodeHammingThresholdStrict=surrogateHammingThresholdStrict,
+                protospacerHammingThresholdStrict=protospacerHammingThresholdStrict
+        }
+        # LEFTOFF, The inputs above needs to be updated to be workflow updates. Continue on the below defined blocks, and add the outputs. Figure out how to pass guide libraries as a Map.
+        output_DemultiplexedResult_i5_defined.left
+
+    }
+    
+    if defined(demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map){
+        Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]] output_readIndexMap_i5_Barcode_Map_defined = select_first([demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map])
+    }
+
+    if defined(demultiplexWorkflow.output_DemultiplexedResult_Barcode){
+        Pair[DemultiplexedFiles, UndeterminedFiles] output_DemultiplexedResult_Barcode_defined = select_first([demultiplexWorkflow.output_DemultiplexedResult_Barcode])
+    }
+
+
 	# TODO: Since we have a MAP, perhaps someone can input a TSV of the sample sheet, then we can return a final table with the samples attached. Or we can return a table without the sample sheet.
 
     output {
@@ -122,7 +195,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         Float umiToolsExtractOutputRead1ReadCount = UmiToolsExtractTask.outputRead1ReadCount
         Float umiToolsExtractOutputFilteredRead1ReadCount = UmiToolsExtractTask.outputFilteredRead1ReadCount
 
-       Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_i5 = demultiplexWorkflow.output_DemultiplexedResult_i5
+        Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_i5 = demultiplexWorkflow.output_DemultiplexedResult_i5
         Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]]? output_readIndexMap_i5_Barcode_Map = demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map
         Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_Barcode = demultiplexWorkflow.output_DemultiplexedResult_Barcode
     }
