@@ -1,6 +1,7 @@
 version development
 
 import "BBMapDemultiplex.wdl" as demultiplex
+import "CrisprSelfEditMapping.wdl" as mapping
 
 task UmiToolsExtractTask {
     input {
@@ -69,52 +70,6 @@ task UmiToolsExtractTask {
 	}
 }
 
-task GuideCount {
-    input {
-        File countInputRead1
-        File? countInputRead2
-        File whitelistGuideReporterTsv
-        String? umiToolsHeaderBarcodeRegex
-        String? umiToolsUmiPatternRegex
-        Int? surrogateHammingThresholdStrict
-        Int? barcodeHammingThresholdStrict
-        Int? protospacerHammingThresholdStrict
-    }
-
-
-
-    command <<<
-        python <<CODE
-            import crispr_ambiguous_mapping
-            import pandas as pd
-            
-            whitelist_guide_reporter_df = pd.read_table("~{whitelistGuideReporterTsv}")
-
-            result = crispr_ambiguous_mapping.mp.get_whitelist_reporter_counts_from_umitools_output(
-                whitelist_guide_reporter_df=whitelist_guide_reporter_df, 
-                fastq_r1_fn='~{countInputRead1}', 
-                fastq_r2_fn=~{if defined(countInputRead2) then "'~{countInputRead2}'" else "None" },
-                barcode_pattern_regex=~{if defined(umiToolsHeaderBarcodeRegex) then "'~{umiToolsHeaderBarcodeRegex}'" else "None" },
-                umi_pattern_regex=~{if defined(umiToolsUmiPatternRegex) then "'~{umiToolsUmiPatternRegex}'" else "None" },
-                surrogate_hamming_threshold_strict=~{if defined(surrogateHammingThresholdStrict) then "~{surrogateHammingThresholdStrict}" else "None" },
-                barcode_hamming_threshold_strict =~{if defined(barcodeHammingThresholdStrict) then "~{barcodeHammingThresholdStrict}" else "None" },
-                protospacer_hamming_threshold_strict=~{if defined(protospacerHammingThresholdStrict) then "~{protospacerHammingThresholdStrict}" else "None" },
-                cores=1)
-
-
-            crispr_ambiguous_mapping.ut.save_or_load_pickle("./", "result", py_object = result, date_string="")
-        CODE
-    >>>
-
-    output {
-        File count_result = "result_.pickle"
-    }
-
-    runtime {
-        docker: "pinellolab/crispr_selfedit_mapping:release-0.0.106a"
-    }
-}
-
 workflow CrisprSensorPreprocessing_Workflow {
     input {
         File rawFastqR1
@@ -146,6 +101,7 @@ workflow CrisprSensorPreprocessing_Workflow {
     }
 
     # Extract relevant sequences using UMI tools
+    # TODO: Once we have the seqspec tool, perhaps that plus the extract task can be moddularized into a new workflow.
     call UmiToolsExtractTask {
         input:
             inputRead1=rawFastqR1,
@@ -169,172 +125,32 @@ workflow CrisprSensorPreprocessing_Workflow {
             sampleName=sampleName
     }
 
-    Boolean i5_demultiplexed = defined(demultiplexWorkflow.output_DemultiplexedResult_i5) && !defined(demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map)
-    Boolean i5_Barcode_demultiplexed = defined(demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map)
-    Boolean barcode_demultiplexed = defined(demultiplexWorkflow.output_DemultiplexedResult_Barcode)
-    Boolean not_demultiplexed = !i5_demultiplexed && !i5_Barcode_demultiplexed && !barcode_demultiplexed
+    call mapping.CrisprSelfEditMappingOrchestratorWorkflow as mappingWorkflow {
+        input:
+            input_DemultiplexedResult_i5=input_DemultiplexedResult_i5,
+            input_readIndexMap_i5_Barcode_Map=input_readIndexMap_i5_Barcode_Map,
+            input_DemultiplexedResult_Barcode=input_DemultiplexedResult_Barcode,
 
-    if (i5_demultiplexed){
-        Pair[DemultiplexedFiles, UndeterminedFiles] output_DemultiplexedResult_i5_defined = select_first([demultiplexWorkflow.output_DemultiplexedResult_i5])
+            input_whitelistGuideReporterTsv=input_whitelistGuideReporterTsv,
+            input_i5Only_whitelistGuideReporterTsv=input_i5Only_whitelistGuideReporterTsv,
+            input_barcodeOnly_whitelistGuideReporterTsv=input_barcodeOnly_whitelistGuideReporterTsv,
+            input_i5Barrcode_whitelistGuideReporterTsv=input_i5Barrcode_whitelistGuideReporterTsv,
+
+            input_umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
+            input_umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
         
-        #
-        #   Scatter through the i5 indices
-        #
-        scatter(demultiplexedFiles_i5 in output_DemultiplexedResult_i5_defined.left.demultiplexedFiles){ 
-            
-            String demultiplexedFiles_i5_Index = demultiplexedFiles_i5.left
-            IndexPair demultiplexedFiles_i5_IndexPair = demultiplexedFiles_i5.right
-            
-            #
-            #   Choose the whitelist_guide_reporter_tsv
-            #
-            if defined(input_i5Only_whitelistGuideReporterTsv){
-                File input_i5Only_whitelistGuideReporterTsv_value = input_i5Only_whitelistGuideReporterTsv[demultiplexedFiles_i5_Index]
-            }
-            File whitelistGuideReporterTsv_i5 = select_first([input_i5Only_whitelistGuideReporterTsv_value, input_whitelistGuideReporterTsv])
-            
-            #
-            #   Perform guide mapping
-            #
-            call GuideCount as GuideCount_i5 {
-                input:
-                    countInputRead1=demultiplexedFiles_i5_IndexPair.read1,
-                    countInputRead2=demultiplexedFiles_i5_IndexPair.read2,
-                    whitelistGuideReporterTsv=whitelistGuideReporterTsv_i5,
-                    umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
-                    umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
-                    surrogateHammingThresholdStrict=input_surrogateHammingThresholdStrict,
-                    barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
-                    protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
-            }
-        }
-
-        # TODO: Create Map from the count result in a similar format to the demultiplex result.
-        GuideCount_i5.count_result
-
+            input_surrogateHammingThresholdStrict=input_surrogateHammingThresholdStrict,
+            input_barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
+            input_protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
     }
+
     
-    if (i5_Barcode_demultiplexed){
-        Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]] output_readIndexMap_i5_Barcode_Map_defined = select_first([demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map])
-        
-        #
-        #   Scatter through the i5 indices
-        #
-        scatter(output_readIndexMap_i5_Barcode_Map_defined_i5Pair in output_readIndexMap_i5_Barcode_Map_defined) { 
-            String output_readIndexMap_i5_Barcode_Map_defined_i5Index = output_readIndexMap_i5_Barcode_Map_defined_i5Pair.left
-            Pair[DemultiplexedFiles, UndeterminedFiles] output_readIndexMap_i5_Barcode_Map_defined_i5_barcodeFiles = output_readIndexMap_i5_Barcode_Map_defined_i5Pair.right.right
-
-
-            #
-            #   Scatter through the barcode indices
-            #
-            scatter(demultiplexedFiles_i5_Barcode in output_readIndexMap_i5_Barcode_Map_defined_i5_barcodeFiles.left.demultiplexedFiles){ # ITERATE THROUGH i5 INDEXES
-            
-                String demultiplexedFiles_i5_BarcodeIndex = demultiplexedFiles_i5_Barcode.left
-                IndexPair demultiplexedFiles_i5_Barcode_IndexPair = demultiplexedFiles_i5_Barcode.right
-                
-                #
-                #   Choose the whitelist_guide_reporter_tsv
-                #
-                if defined(input_i5Barcode_whitelistGuideReporterTsv){
-                    File input_i5Barcode_whitelistGuideReporterTsv_value = input_i5Barcode_whitelistGuideReporterTsv[output_readIndexMap_i5_Barcode_Map_defined_i5Index][demultiplexedFiles_i5_BarcodeIndex]
-                }
-                if defined(input_i5Only_whitelistGuideReporterTsv){
-                    File input_i5Only_whitelistGuideReporterTsv_value = input_i5Only_whitelistGuideReporterTsv[output_readIndexMap_i5_Barcode_Map_defined_i5Index]
-                }
-                if defined(input_barcodeOnly_whitelistGuideReporterTsv){
-                    File input_barcodeOnly_whitelistGuideReporterTsv_value = input_barcodeOnly_whitelistGuideReporterTsv[demultiplexedFiles_i5_BarcodeIndex]
-                }
-                File whitelistGuideReporterTsv_i5_Barcode = select_first([input_i5Barcode_whitelistGuideReporterTsv_value, input_i5Only_whitelistGuideReporterTsv_value, input_barcodeOnly_whitelistGuideReporterTsv_value, input_whitelistGuideReporterTsv])
-                
-                #
-                #   Perform guide mapping of sample
-                #
-                call GuideCount as GuideCount_i5_Barcode {
-                    input:
-                        countInputRead1=demultiplexedFiles_i5_Barcode_IndexPair.read1,
-                        countInputRead2=demultiplexedFiles_i5_Barcode_IndexPair.read2,
-                        whitelistGuideReporterTsv=whitelistGuideReporterTsv_i5_Barcode,
-                        umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
-                        umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
-                        surrogateHammingThresholdStrict=input_surrogateHammingThresholdStrict,
-                        barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
-                        protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
-                }
-            }
-
-            # TODO: Create Map from the count result in a similar format to the demultiplex result.
-        }
-
-        # TODO: Create Map from the count result in a similar format to the demultiplex result.
-    }
-
-    if (barcode_demultiplexed){
-        Pair[DemultiplexedFiles, UndeterminedFiles] output_DemultiplexedResult_Barcode_defined = select_first([demultiplexWorkflow.output_DemultiplexedResult_Barcode])
-        
-        #
-        #   Scatter through the i5 indices
-        #
-        scatter(demultiplexedFiles_barcode in output_DemultiplexedResult_Barcode_defined.left.demultiplexedFiles){ 
-            
-            String demultiplexedFiles_barcode_Index = demultiplexedFiles_barcode.left
-            IndexPair demultiplexedFiles_barcode_IndexPair = demultiplexedFiles_barcode.right
-            
-            #
-            #   Choose the whitelist_guide_reporter_tsv
-            #
-            if defined(input_barcodeOnly_whitelistGuideReporterTsv){
-                File input_barcodeOnly_whitelistGuideReporterTsv_value = input_barcodeOnly_whitelistGuideReporterTsv[demultiplexedFiles_barcode_Index]
-            }
-            File whitelistGuideReporterTsv_barcode = select_first([input_barcodeOnly_whitelistGuideReporterTsv_value, input_whitelistGuideReporterTsv])
-            
-            #
-            #   Perform guide mapping
-            #
-            call GuideCount as GuideCount_Barcode {
-                input:
-                    countInputRead1=demultiplexedFiles_barcode_IndexPair.read1,
-                    countInputRead2=demultiplexedFiles_barcode_IndexPair.read2,
-                    whitelistGuideReporterTsv=whitelistGuideReporterTsv_barcode,
-                    umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
-                    umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
-                    surrogateHammingThresholdStrict=input_surrogateHammingThresholdStrict,
-                    barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
-                    protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
-            }
-        }
-
-        # TODO: Create Map from the count result in a similar format to the demultiplex result.
-        GuideCount_Barcode.count_result
-
-    }
-
-    if (not_demultiplexed){
-        #
-        #   Choose the whitelist_guide_reporter_tsv
-        #
-        File whitelistGuideReporterTsv_nonIndexed = select_first([input_whitelistGuideReporterTsv])
-        
-        #
-        #   Perform guide mapping
-        #
-        call GuideCount as GuideCount_NonIndexed {
-            input:
-                countInputRead1=UmiToolsExtractTask.outputRead1,
-                countInputRead2=UmiToolsExtractTask.outputRead2,
-                whitelistGuideReporterTsv=whitelistGuideReporterTsv_nonIndexed,
-                umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
-                umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
-                surrogateHammingThresholdStrict=input_surrogateHammingThresholdStrict,
-                barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
-                protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
-        }
-    }
-    # LEFTOFF - Organize the guide count results and set as output, then test. After testing, do the TODO before to use the sample sheet
-
-	# TODO: Since we have a MAP, perhaps someone can input a TSV of the sample sheet, then we can return a final table with the samples attached. Or we can return a table without the sample sheet.
+	# TODO: Since we have a MAP, perhaps someone can input a TSV of the sample sheet, then we can return a final table with the samples attached. Or we can return a table without the sample sheet. Make this into another workflow for preprocessing all outputs
 
     output {
+        #
+        #   UMI Tools Outputs
+        #
         File umiToolsExtractedOutputRead1 = UmiToolsExtractTask.outputRead1
         File? umiToolsExtractedOutputRead2 = UmiToolsExtractTask.outputRead2
         File umiToolsExtractedOutputFilteredRead1=UmiToolsExtractTask.outputFilteredRead1
@@ -343,9 +159,20 @@ workflow CrisprSensorPreprocessing_Workflow {
         Float umiToolsExtractOutputRead1ReadCount = UmiToolsExtractTask.outputRead1ReadCount
         Float umiToolsExtractOutputFilteredRead1ReadCount = UmiToolsExtractTask.outputFilteredRead1ReadCount
 
+        #
+        #   Demultiplexing Outputs
+        #
         Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_i5 = demultiplexWorkflow.output_DemultiplexedResult_i5
         Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]]? output_readIndexMap_i5_Barcode_Map = demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map
         Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_Barcode = demultiplexWorkflow.output_DemultiplexedResult_Barcode
+
+        #
+        # Guide Mapping Outputs
+        #
+        Map[String, File]? output_GuideCount_i5_count_result_map = mappingWorkflow.output_GuideCount_i5_count_result_map
+        Map[String, Map[String, File]] output_GuideCount_i5_Barcode_count_result_nested_map = mappingWorkflow.output_GuideCount_i5_Barcode_count_result_nested_map
+        Map[String, File]? output_GuideCount_Barcode_count_result_map = mappingWorkflow.output_GuideCount_Barcode_count_result_map
+
     }
 }
 
