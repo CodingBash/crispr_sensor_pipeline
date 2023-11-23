@@ -90,7 +90,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         File? input_whitelistGuideReporterTsv
         Map[String, File]? input_i5Only_whitelistGuideReporterTsv
         Map[String, File]? input_barcodeOnly_whitelistGuideReporterTsv
-        Map[String, Map[String, File]]? input_i5Barrcode_whitelistGuideReporterTsv
+        Map[String, Map[String, File]]? input_i5Barcode_whitelistGuideReporterTsv
 
         String? input_umiToolsHeaderBarcodeRegex
         String? input_umiToolsUmiPatternRegex
@@ -127,14 +127,16 @@ workflow CrisprSensorPreprocessing_Workflow {
 
     call mapping.CrisprSelfEditMappingOrchestratorWorkflow as mappingWorkflow {
         input:
-            input_DemultiplexedResult_i5=input_DemultiplexedResult_i5,
-            input_readIndexMap_i5_Barcode_Map=input_readIndexMap_i5_Barcode_Map,
-            input_DemultiplexedResult_Barcode=input_DemultiplexedResult_Barcode,
+            input_DemultiplexedResult_i5=demultiplexWorkflow.output_DemultiplexedResult_i5,
+            input_readIndexMap_i5_Barcode_Map=demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map,
+            input_DemultiplexedResult_Barcode=demultiplexWorkflow.output_DemultiplexedResult_Barcode,
+            input_nonDemultiplexedRead1=UmiToolsExtractTask.outputRead1,
+            input_nonDemultiplexedRead2=UmiToolsExtractTask.outputRead2,
 
             input_whitelistGuideReporterTsv=input_whitelistGuideReporterTsv,
             input_i5Only_whitelistGuideReporterTsv=input_i5Only_whitelistGuideReporterTsv,
             input_barcodeOnly_whitelistGuideReporterTsv=input_barcodeOnly_whitelistGuideReporterTsv,
-            input_i5Barrcode_whitelistGuideReporterTsv=input_i5Barrcode_whitelistGuideReporterTsv,
+            input_i5Barcode_whitelistGuideReporterTsv=input_i5Barcode_whitelistGuideReporterTsv,
 
             input_umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
             input_umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
@@ -170,7 +172,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         # Guide Mapping Outputs
         #
         Map[String, File]? output_GuideCount_i5_count_result_map = mappingWorkflow.output_GuideCount_i5_count_result_map
-        Map[String, Map[String, File]] output_GuideCount_i5_Barcode_count_result_nested_map = mappingWorkflow.output_GuideCount_i5_Barcode_count_result_nested_map
+        Map[String, Map[String, File]]? output_GuideCount_i5_Barcode_count_result_nested_map = mappingWorkflow.output_GuideCount_i5_Barcode_count_result_nested_map
         Map[String, File]? output_GuideCount_Barcode_count_result_map = mappingWorkflow.output_GuideCount_Barcode_count_result_map
 
     }

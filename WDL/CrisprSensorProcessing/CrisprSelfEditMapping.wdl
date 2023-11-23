@@ -1,3 +1,7 @@
+version development
+
+import "BBMapDemultiplex.wdl" as demultiplex
+
 task GuideCount {
     input {
         File countInputRead1
@@ -47,11 +51,13 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
         Pair[DemultiplexedFiles, UndeterminedFiles]? input_DemultiplexedResult_i5
         Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]]? input_readIndexMap_i5_Barcode_Map
         Pair[DemultiplexedFiles, UndeterminedFiles]? input_DemultiplexedResult_Barcode
+        File input_nonDemultiplexedRead1
+        File? input_nonDemultiplexedRead2
 
         File? input_whitelistGuideReporterTsv
         Map[String, File]? input_i5Only_whitelistGuideReporterTsv
         Map[String, File]? input_barcodeOnly_whitelistGuideReporterTsv
-        Map[String, Map[String, File]]? input_i5Barrcode_whitelistGuideReporterTsv
+        Map[String, Map[String, File]]? input_i5Barcode_whitelistGuideReporterTsv
 
         String? input_umiToolsHeaderBarcodeRegex
         String? input_umiToolsUmiPatternRegex
@@ -75,7 +81,7 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
         #
         #   Scatter through the i5 indices
         #
-        scatter(demultiplexedFiles_i5 in output_DemultiplexedResult_i5_defined.left.demultiplexedFiles){ 
+        scatter(demultiplexedFiles_i5 in as_pairs(output_DemultiplexedResult_i5_defined.left.demultiplexedFiles)){ 
             
             String demultiplexedFiles_i5_Index = demultiplexedFiles_i5.left
             IndexPair demultiplexedFiles_i5_IndexPair = demultiplexedFiles_i5.right
@@ -83,8 +89,9 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
             #
             #   Choose the whitelist_guide_reporter_tsv
             #
-            if defined(input_i5Only_whitelistGuideReporterTsv){
-                File input_i5Only_whitelistGuideReporterTsv_value = input_i5Only_whitelistGuideReporterTsv[demultiplexedFiles_i5_Index]
+            if(defined(input_i5Only_whitelistGuideReporterTsv)){
+                Map[String, File] input_i5Only_whitelistGuideReporterTsv_defined = select_first([input_i5Only_whitelistGuideReporterTsv])
+                File input_i5Only_whitelistGuideReporterTsv_value = input_i5Only_whitelistGuideReporterTsv_defined[demultiplexedFiles_i5_Index]
             }
             File whitelistGuideReporterTsv_i5 = select_first([input_i5Only_whitelistGuideReporterTsv_value, input_whitelistGuideReporterTsv])
             
@@ -120,7 +127,7 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
         #
         #   Scatter through the i5 indices
         #
-        scatter(output_readIndexMap_i5_Barcode_Map_defined_i5Pair in output_readIndexMap_i5_Barcode_Map_defined) { 
+        scatter(output_readIndexMap_i5_Barcode_Map_defined_i5Pair in as_pairs(output_readIndexMap_i5_Barcode_Map_defined)) { 
             String output_readIndexMap_i5_Barcode_Map_defined_i5Index = output_readIndexMap_i5_Barcode_Map_defined_i5Pair.left
             Pair[DemultiplexedFiles, UndeterminedFiles] output_readIndexMap_i5_Barcode_Map_defined_i5_barcodeFiles = output_readIndexMap_i5_Barcode_Map_defined_i5Pair.right.right
 
@@ -128,7 +135,7 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
             #
             #   Scatter through the barcode indices
             #
-            scatter(demultiplexedFiles_i5_Barcode in output_readIndexMap_i5_Barcode_Map_defined_i5_barcodeFiles.left.demultiplexedFiles){ # ITERATE THROUGH i5 INDEXES
+            scatter(demultiplexedFiles_i5_Barcode in as_pairs(output_readIndexMap_i5_Barcode_Map_defined_i5_barcodeFiles.left.demultiplexedFiles)){ # ITERATE THROUGH i5 INDEXES
             
                 String demultiplexedFiles_i5_BarcodeIndex = demultiplexedFiles_i5_Barcode.left
                 IndexPair demultiplexedFiles_i5_Barcode_IndexPair = demultiplexedFiles_i5_Barcode.right
@@ -136,14 +143,17 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
                 #
                 #   Choose the whitelist_guide_reporter_tsv
                 #
-                if defined(input_i5Barcode_whitelistGuideReporterTsv){
-                    File input_i5Barcode_whitelistGuideReporterTsv_value = input_i5Barcode_whitelistGuideReporterTsv[output_readIndexMap_i5_Barcode_Map_defined_i5Index][demultiplexedFiles_i5_BarcodeIndex]
+                if(defined(input_i5Barcode_whitelistGuideReporterTsv)){
+                    Map[String, Map[String, File]] input_i5Barcode_whitelistGuideReporterTsv_defined = select_first([input_i5Barcode_whitelistGuideReporterTsv])
+                    File input_i5Barcode_whitelistGuideReporterTsv_value = input_i5Barcode_whitelistGuideReporterTsv_defined[output_readIndexMap_i5_Barcode_Map_defined_i5Index][demultiplexedFiles_i5_BarcodeIndex]
                 }
-                if defined(input_i5Only_whitelistGuideReporterTsv){
-                    File input_i5Only_whitelistGuideReporterTsv_value = input_i5Only_whitelistGuideReporterTsv[output_readIndexMap_i5_Barcode_Map_defined_i5Index]
+                if(defined(input_i5Only_whitelistGuideReporterTsv)){
+                    Map[String, File] input_i5Only_whitelistGuideReporterTsv_defined = select_first([input_i5Only_whitelistGuideReporterTsv])
+                    File input_i5Only_whitelistGuideReporterTsv_value = input_i5Only_whitelistGuideReporterTsv_defined[output_readIndexMap_i5_Barcode_Map_defined_i5Index]
                 }
-                if defined(input_barcodeOnly_whitelistGuideReporterTsv){
-                    File input_barcodeOnly_whitelistGuideReporterTsv_value = input_barcodeOnly_whitelistGuideReporterTsv[demultiplexedFiles_i5_BarcodeIndex]
+                if(defined(input_barcodeOnly_whitelistGuideReporterTsv)){
+                    Map[String, File] input_barcodeOnly_whitelistGuideReporterTsv_defined = select_first([input_barcodeOnly_whitelistGuideReporterTsv])
+                    File input_barcodeOnly_whitelistGuideReporterTsv_value = input_barcodeOnly_whitelistGuideReporterTsv_defined[demultiplexedFiles_i5_BarcodeIndex]
                 }
                 File whitelistGuideReporterTsv_i5_Barcode = select_first([input_i5Barcode_whitelistGuideReporterTsv_value, input_i5Only_whitelistGuideReporterTsv_value, input_barcodeOnly_whitelistGuideReporterTsv_value, input_whitelistGuideReporterTsv])
                 
@@ -183,7 +193,7 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
         #
         #   Scatter through the i5 indices
         #
-        scatter(demultiplexedFiles_barcode in output_DemultiplexedResult_Barcode_defined.left.demultiplexedFiles){ 
+        scatter(demultiplexedFiles_barcode in as_pairs(output_DemultiplexedResult_Barcode_defined.left.demultiplexedFiles)){ 
             
             String demultiplexedFiles_barcode_Index = demultiplexedFiles_barcode.left
             IndexPair demultiplexedFiles_barcode_IndexPair = demultiplexedFiles_barcode.right
@@ -191,8 +201,9 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
             #
             #   Choose the whitelist_guide_reporter_tsv
             #
-            if defined(input_barcodeOnly_whitelistGuideReporterTsv){
-                File input_barcodeOnly_whitelistGuideReporterTsv_value = input_barcodeOnly_whitelistGuideReporterTsv[demultiplexedFiles_barcode_Index]
+            if(defined(input_barcodeOnly_whitelistGuideReporterTsv)){
+                Map[String, File] input_barcodeOnly_whitelistGuideReporterTsv_defined = select_first([input_barcodeOnly_whitelistGuideReporterTsv])
+                File input_barcodeOnly_whitelistGuideReporterTsv_value = input_barcodeOnly_whitelistGuideReporterTsv_defined[demultiplexedFiles_barcode_Index]
             }
             File whitelistGuideReporterTsv_barcode = select_first([input_barcodeOnly_whitelistGuideReporterTsv_value, input_whitelistGuideReporterTsv])
             
@@ -230,8 +241,8 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
         #
         call GuideCount as GuideCount_NonIndexed {
             input:
-                countInputRead1=UmiToolsExtractTask.outputRead1,
-                countInputRead2=UmiToolsExtractTask.outputRead2,
+                countInputRead1=input_nonDemultiplexedRead1,
+                countInputRead2=input_nonDemultiplexedRead2,
                 whitelistGuideReporterTsv=whitelistGuideReporterTsv_nonIndexed,
                 umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
                 umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
@@ -243,7 +254,7 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
 
     output {
         Map[String, File]? output_GuideCount_i5_count_result_map = GuideCount_i5_count_result_map 
-        Map[String, Map[String, File]] output_GuideCount_i5_Barcode_count_result_nested_map = GuideCount_i5_Barcode_count_result_nested_map
+        Map[String, Map[String, File]]? output_GuideCount_i5_Barcode_count_result_nested_map = GuideCount_i5_Barcode_count_result_nested_map
         Map[String, File]? output_GuideCount_Barcode_count_result_map = GuideCount_Barcode_count_result_map
     }
 
