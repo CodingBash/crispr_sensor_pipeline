@@ -86,12 +86,31 @@ workflow CrisprSensorPreprocessing_Workflow {
         Int i5Hamming 
         Int barcodeHamming
 
-
+        #OLD
         File? input_whitelistGuideReporterTsv
         Map[String, File]? input_i5Only_whitelistGuideReporterTsv
         Map[String, File]? input_barcodeOnly_whitelistGuideReporterTsv
         Map[String, Map[String, File]]? input_i5Barcode_whitelistGuideReporterTsv
+        
+        #NEW contains the demultiplex to screen ID map
+        String? input_screenId
+        Map[String, String]? input_i5ToScreenidMap
+        Map[String, String]? input_barcodeToScreenidMap
+        Map[String, Map[String, String]]? input_i5ToBarcodeToScreenidMap
 
+        #NEW contains the demultiplex to sample Information
+        Array[String]? input_sampleInfoVarnames
+        Array[String]? input_sampleInfoVars
+        Map[String, Array[String]]? input_i5ToSampleInfoVarsMap
+        Map[String, Array[String]]? input_barcodeToSampleInfoVarsMap
+        Map[String, Map[String, Array[String]]]? input_i5ToBarcodeToSampleInfoVarsMap
+
+        # NEW contains the screenId to reporter TSV map
+        File? input_whitelistGuideReporterTsv
+        Map[String, File]? input_screenIdToWhitelistGuideReporterTsv
+        Map[String, File]? input_screenIdToGuideAnnotationsTsv # NOTE: This can be based on the IGVF guide specification or any flexible schema
+
+        # NEW contains annotations of demultiplex to annotations table
         String? input_umiToolsHeaderBarcodeRegex
         String? input_umiToolsUmiPatternRegex
         
@@ -122,22 +141,29 @@ workflow CrisprSensorPreprocessing_Workflow {
             barcodeIndexList=barcodeIndexList,
             i5Hamming=i5Hamming,
             barcodeHamming=barcodeHamming,
-            sampleName=sampleName
+            sampleName=sampleName,
+
+            # Mapping from indices to screen name
+            screenId=input_screenId,
+            i5ToScreenidMap=input_i5ToScreenidMap,
+            barcodeToScreenidMap=input_barcodeToScreenidMap,
+            i5ToBarcodeToScreenidMap=input_i5ToBarcodeToScreenidMap,
+
+            # Mapping from indices to sample annotations
+            sampleInfoVars=input_sampleInfoVars,
+            i5ToSampleInfoVarsMap=input_i5ToSampleInfoVarsMap,
+            barcodeToSampleInfoVarsMap=input_barcodeToSampleInfoVarsMap,
+            i5ToBarcodeToSampleInfoVarsMap=input_i5ToBarcodeToSampleInfoVarsMap,
     }
 
     call mapping.CrisprSelfEditMappingOrchestratorWorkflow as mappingWorkflow {
         input:
-            input_DemultiplexedResult_i5=demultiplexWorkflow.output_DemultiplexedResult_i5,
-            input_readIndexMap_i5_Barcode_Map=demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map,
-            input_DemultiplexedResult_Barcode=demultiplexWorkflow.output_DemultiplexedResult_Barcode,
-            input_nonDemultiplexedRead1=UmiToolsExtractTask.outputRead1,
-            input_nonDemultiplexedRead2=UmiToolsExtractTask.outputRead2,
+            input_screenIdToSampleMap=demultiplexWorkflow.output_screenIdToSampleMap,
 
             input_whitelistGuideReporterTsv=input_whitelistGuideReporterTsv,
-            input_i5Only_whitelistGuideReporterTsv=input_i5Only_whitelistGuideReporterTsv,
-            input_barcodeOnly_whitelistGuideReporterTsv=input_barcodeOnly_whitelistGuideReporterTsv,
-            input_i5Barcode_whitelistGuideReporterTsv=input_i5Barcode_whitelistGuideReporterTsv,
-
+            input_screenIdToWhitelistGuideReporterTsv=input_screenIdToWhitelistGuideReporterTsv,
+            input_screenIdToGuideAnnotationsTsv=input_screenIdToGuideAnnotationsTsv,
+            
             input_umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
             input_umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
         
@@ -164,9 +190,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         #
         #   Demultiplexing Outputs
         #
-        Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_i5 = demultiplexWorkflow.output_DemultiplexedResult_i5
-        Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]]? output_readIndexMap_i5_Barcode_Map = demultiplexWorkflow.output_readIndexMap_i5_Barcode_Map
-        Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_Barcode = demultiplexWorkflow.output_DemultiplexedResult_Barcode
+        Map[String, Array[AnnotatedSample]] output_screenIdToSampleMap = demultiplexWorkflow.output_screenIdToSampleMap
 
         #
         # Guide Mapping Outputs

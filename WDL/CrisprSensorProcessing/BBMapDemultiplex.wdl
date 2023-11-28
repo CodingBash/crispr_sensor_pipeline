@@ -2,6 +2,14 @@ version development
 
 import "BBMapDemultiplexPostprocessWorkflow.wdl" as postprocess
 
+struct AnnotatedSample {
+    String screenId
+    String? i5Index
+    String? barcodeIndex
+    File read1
+    File? read2
+    Array[String]? sampleAnnotation
+}
 
 task BBMapDemultiplexRunnerTask {
         input {
@@ -54,9 +62,25 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
         Int barcodeHamming
 
         String sampleName
+
+        # Mapping from indices to screen name
+        String? screenId
+        Map[String, String]? i5ToScreenidMap
+        Map[String, String]? barcodeToScreenidMap
+        Map[String, Map[String, String]]? i5ToBarcodeToScreenidMap
+
+        # Mapping from indices to sample annotations
+        Array[String]? sampleInfoVars
+        Map[String, Array[String]]? i5ToSampleInfoVarsMap
+        Map[String, Array[String]]? barcodeToSampleInfoVarsMap
+        Map[String, Map[String, Array[String]]]? i5ToBarcodeToSampleInfoVarsMap
     }
 
+
+
+    #
     # Process the indices
+    #
     if(!defined(i5IndexList)){
         if(defined(i5IndexStringTextFile)){
             Array[String] i5IndexStringTextFileList = read_lines(select_first([i5IndexStringTextFile]))
@@ -68,7 +92,9 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
         }
     }
 	
+    #
     # Prepare the demultiplex filename patterns. The "root" filenames are there to be used with "basename" function to extract the indices from the globbed filenames post-demultiplex
+    #
     String rootDemultiplexedI5OutputFilenamePattern = ".${sampleName}.Demultiplexed.R#.fastq"
     String demultiplexedI5OutputFilenamePattern = "%" + rootDemultiplexedI5OutputFilenamePattern
     String demultiplexedI5UndeterminedFilenamePattern = "${sampleName}.Undetermined.R#.fastq"
@@ -81,7 +107,9 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
     Boolean i5IndexAvailable = defined(i5IndexList) || defined(i5IndexStringTextFileList) 
     Boolean barcodeIndexAvailable = defined(barcodeIndexList) || defined(barcodeIndexStringTextFileList)
 
+    #
     # If i5 indices available, demultiplex the i5
+    #
     if (i5IndexAvailable) {
         # Perform i5 demultiplex
         call BBMapDemultiplexRunnerTask as BBMapDemultiplexRunnerTask_i5 {
@@ -108,8 +136,10 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
         
         
         Pair[DemultiplexedFiles, UndeterminedFiles] demultiplexedResult_i5 = BBMapDemultiplexRunnerPostprocessWorkflow_i5.output_demultiplexedResults
-
+        
+        #
         # If barcode indices available, demultiplex the barcode
+        #
         if(barcodeIndexAvailable){
             
             # For each demultiplexed i5, demultiplex by barcode
@@ -146,12 +176,128 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
             # Coerce the array of barcode results into a list of pairs, then coerce into a map
             Array[Pair[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]]?] readIndexMap_i5_Barcode_List = readIndexMap_i5_Barcode
             Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]] readIndexMap_i5_Barcode_Map = as_map(select_all(readIndexMap_i5_Barcode_List))
+
+
+            #
+            # Convert into Map of screenID to sample.
+            #
+            scatter(readIndexMap_i5_Barcode_Map_as_pairs in as_pairs(readIndexMap_i5_Barcode_Map)){
+                String readIndexMap_i5_Barcode_Map_as_pairs_i5Index = readIndexMap_i5_Barcode_Map_as_pairs.left
+                Pair[DemultiplexedFiles, UndeterminedFiles] readIndexMap_i5_Barcode_Map_as_pairs_barcodeFiles = readIndexMap_i5_Barcode_Map_as_pairs.right.right
+
+                scatter(demultiplexedFiles_i5_Barcode in as_pairs(readIndexMap_i5_Barcode_Map_as_pairs_barcodeFiles.left.demultiplexedFiles)){ # ITERATE THROUGH i5 INDEXES
+            
+                    String demultiplexedFiles_i5_BarcodeIndex = demultiplexedFiles_i5_Barcode.left
+                    IndexPair demultiplexedFiles_i5_Barcode_IndexPair = demultiplexedFiles_i5_Barcode.right
+                    
+
+                    #
+                    #   Get the sample screen ID
+                    #
+                    if(defined(i5ToBarcodeToScreenidMap)){
+                        Map[String, Map[String, String]] i5ToBarcodeToScreenidMap_defined = select_first([i5ToBarcodeToScreenidMap])
+                        String i5ToBarcodeToScreenidMap_screenId = i5ToBarcodeToScreenidMap_defined[readIndexMap_i5_Barcode_Map_as_pairs_i5Index][demultiplexedFiles_i5_BarcodeIndex]
+                    }
+                    if(defined(i5ToScreenidMap)){
+                        Map[String, String] i5ToScreenidMap_defined = select_first([i5ToScreenidMap])
+                        String i5ToScreenidMap_screenId = i5ToScreenidMap_defined[readIndexMap_i5_Barcode_Map_as_pairs_i5Index]
+                    }
+                    if(defined(barcodeToScreenidMap)){
+                        Map[String, String] barcodeToScreenidMap_defined = select_first([barcodeToScreenidMap])
+                        String barcodeToScreenidMap_screenId = barcodeToScreenidMap_defined[demultiplexedFiles_i5_BarcodeIndex]
+                    }
+                    File screenId_selected = select_first([i5ToBarcodeToScreenidMap_defined, i5ToScreenidMap_screenId, barcodeToScreenidMap_screenId, screenId, "nullScreenId"])
+                    
+
+                    #
+                    #   Get the sample annotation
+                    #
+                    if(defined(i5ToBarcodeToSampleInfoVarsMap)){
+                        Map[String, Map[String, String]] i5ToBarcodeToSampleInfoVarsMap_defined = select_first([i5ToBarcodeToSampleInfoVarsMap])
+                        String i5ToBarcodeToSampleInfoVarsMap_sampleAnnotation = i5ToBarcodeToSampleInfoVarsMap_defined[readIndexMap_i5_Barcode_Map_as_pairs_i5Index][demultiplexedFiles_i5_BarcodeIndex]
+                    }
+                    if(defined(i5ToSampleInfoVarsMap)){
+                        Map[String, String] i5ToSampleInfoVarsMap_defined = select_first([i5ToSampleInfoVarsMap])
+                        String i5ToSampleInfoVarsMap_sampleAnnotation = i5ToSampleInfoVarsMap_defined[readIndexMap_i5_Barcode_Map_as_pairs_i5Index]
+                    }
+                    if(defined(barcodeToSampleInfoVarsMap)){
+                        Map[String, String] barcodeToSampleInfoVarsMap_defined = select_first([barcodeToSampleInfoVarsMap])
+                        String barcodeToSampleInfoVarsMap_sampleAnnotation = barcodeToSampleInfoVarsMap_defined[demultiplexedFiles_i5_BarcodeIndex]
+                    }
+                    Array[String] screenAnnotation_selected = select_first([i5ToBarcodeToSampleInfoVarsMap_sampleAnnotation, i5ToSampleInfoVarsMap_sampleAnnotation, barcodeToSampleInfoVarsMap_sampleAnnotation, sampleInfoVars, []])
+
+
+                    AnnotatedSample i5Barcode_annotatedSample = {
+                        "screenId":screenId_selected,
+                        "i5Index":readIndexMap_i5_Barcode_Map_as_pairs_i5Index,
+                        "barcodeIndex": demultiplexedFiles_i5_BarcodeIndex,
+                        "read1":demultiplexedFiles_i5_Barcode_IndexPair.read1,
+                        "read2":demultiplexedFiles_i5_Barcode_IndexPair.read2,
+                        "sampleAnnotation":screenAnnotation_selected
+                    }
+                    Pair[String, AnnotatedSample] screenIdAnnotatedSamplePair = (screenId, i5Barcode_annotatedSample)
+                }
+            }
+
+            Array[Pair[String, AnnotatedSample]] screenIdToSampleArray = flatten(screenIdAnnotatedSamplePair)
+            Map[String, Array[AnnotatedSample]] i5Barcode_screenIdToSampleMap = collect_by_key(screenIdToSampleArray)
+        }
+
+
+
+        #
+        #   If barcode is note available, still convert into Map of screen ID to sample
+        #
+        if(!barcodeIndexAvailable){
+            #
+            # Convert into Map of screenID to sample.
+            #
+            scatter(demultiplexedFiles_i5 in as_pairs(output_DemultiplexedResult_i5_defined.left.demultiplexedFiles)){
+                String demultiplexedFiles_i5_Index = demultiplexedFiles_i5.left
+                IndexPair demultiplexedFiles_i5_IndexPair = demultiplexedFiles_i5.right
+
+                #
+                #   Get the sample screen ID
+                #
+                if(defined(i5ToScreenidMap)){
+                    Map[String, String] i5ToScreenidMap_defined = select_first([i5ToScreenidMap])
+                    String i5ToScreenidMap_screenId = i5ToScreenidMap_defined[demultiplexedFiles_i5_Index]
+                }
+                File screenId_selected = select_first([i5ToScreenidMap_screenId, screenId, "nullScreenId"])
+                
+
+                #
+                #   Get the sample annotation
+                #
+                if(defined(i5ToSampleInfoVarsMap)){
+                    Map[String, String] i5ToSampleInfoVarsMap_defined = select_first([i5ToSampleInfoVarsMap])
+                    String i5ToSampleInfoVarsMap_sampleAnnotation = i5ToSampleInfoVarsMap_defined[demultiplexedFiles_i5_Index]
+                }
+                Array[String] screenAnnotation_selected = select_first([i5ToSampleInfoVarsMap_sampleAnnotation, sampleInfoVars, []])
+
+
+                AnnotatedSample i5_annotatedSample = {
+                    "screenId":screenId_selected,
+                    "i5Index":demultiplexedFiles_i5_Index,
+                    "read1":demultiplexedFiles_i5_IndexPair.read1,
+                    "read2":demultiplexedFiles_i5_IndexPair.read2,
+                    "sampleAnnotation":screenAnnotation_selected
+                }
+                Pair[String, AnnotatedSample] screenIdAnnotatedSamplePair = (screenId, i5_annotatedSample)
+            }
+
+            Array[Pair[String, AnnotatedSample]] screenIdToSampleArray = screenIdAnnotatedSamplePair
+            Map[String, Array[AnnotatedSample]] i5_screenIdToSampleMap = collect_by_key(screenIdToSampleArray)
         }
     } 
 
+    #
     # If there is no i5 indices available
+    #
     if (!i5IndexAvailable) {
+        #
         # But there is barcode indices available, then only demultiplex by the barcode
+        #
         if(barcodeIndexAvailable){
 
             # Perform barcode demultiplex
@@ -178,12 +324,68 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
             }
             
              Pair[DemultiplexedFiles, UndeterminedFiles] demultiplexedResult_Barcode = BBMapDemultiplexRunnerPostprocessWorkflow_Barcode.output_demultiplexedResults
+
+
+            #
+            # Convert into Map of screenID to sample.
+            #
+            scatter(demultiplexedFiles_barcode in as_pairs(demultiplexedResult_Barcode.left.demultiplexedFiles)){ 
+                String demultiplexedFiles_barcode_Index = demultiplexedFiles_barcode.left
+                IndexPair demultiplexedFiles_barcode_IndexPair = demultiplexedFiles_barcode.right
+
+                #
+                #   Get the sample screen ID
+                #
+                if(defined(barcodeToScreenidMap)){
+                    Map[String, String] barcodeToScreenidMap_defined = select_first([barcodeToScreenidMap])
+                    String barcodeToScreenidMap_screenId = barcodeToScreenidMap_defined[demultiplexedFiles_barcode_Index]
+                }
+                File screenId_selected = select_first([barcodeToScreenidMap_screenId, screenId, "nullScreenId"])
+                
+                #
+                #   Get the sample annotation
+                #
+                if(defined(barcodeToSampleInfoVarsMap)){
+                    Map[String, String] barcodeToSampleInfoVarsMap_defined = select_first([barcodeToSampleInfoVarsMap])
+                    String barcodeToSampleInfoVarsMap_sampleAnnotation = barcodeToSampleInfoVarsMap_defined[demultiplexedFiles_barcode_Index]
+                }
+                Array[String] screenAnnotation_selected = select_first([barcodeToSampleInfoVarsMap_sampleAnnotation, sampleInfoVars, []])
+
+
+                AnnotatedSample barcode_annotatedSample = {
+                    "screenId":screenId_selected,
+                    "barcodeIndex": demultiplexedFiles_barcode_Index,
+                    "read1":demultiplexedFiles_barcode_IndexPair.read1,
+                    "read2":demultiplexedFiles_barcode_IndexPair.read2,
+                    "sampleAnnotation":screenAnnotation_selected
+                }
+                Pair[String, AnnotatedSample] screenIdAnnotatedSamplePair = (screenId, barcode_annotatedSample)
+            }
+
+            Array[Pair[String, AnnotatedSample]] screenIdToSampleArray = flatten(screenIdAnnotatedSamplePair)
+            Map[String, Array[AnnotatedSample]] barcode_screenIdToSampleMap = collect_by_key(screenIdToSampleArray)
         }
+
+        #
+        # Prepare sample annotation for nonDemultiplexed Sample
+        #
+        nonDemultiplexed_screenId = select_first([screenId, "nullScreenId"])
+        AnnotatedSample barcode_annotatedSample = {
+                "screenId":nonDemultiplexed_screenId,
+                "read1":inputRead1,
+                "read2":inputRead2,
+                "sampleAnnotation":sampleInfoVars
+            }
+
+        Array[Pair[String, AnnotatedSample]] screenIdToSampleArray = [(nonDemultiplexed_screenId, barcode_annotatedSample)]
+        Map[String, Array[AnnotatedSample]] nonDemultiplexed_screenIdToSampleMap = collect_by_key(screenIdToSampleArray)
+
+
+        # Select the final screenIdToSampleMap
+        Map[String, Array[AnnotatedSample]] screenIdToSampleMap = select_first([i5Barcode_screenIdToSampleMap, i5_screenIdToSampleMap, barcode_screenIdToSampleMap, nonDemultiplexed_screenIdToSampleMap])
     }
 
     output {
-        Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_i5 = demultiplexedResult_i5
-        Map[String, Pair[IndexPair, Pair[DemultiplexedFiles, UndeterminedFiles]]]? output_readIndexMap_i5_Barcode_Map = readIndexMap_i5_Barcode_Map
-        Pair[DemultiplexedFiles, UndeterminedFiles]? output_DemultiplexedResult_Barcode = demultiplexedResult_Barcode
+        Map[String, Array[AnnotatedSample]] output_screenIdToSampleMap = screenIdToSampleMap
     }
 }
