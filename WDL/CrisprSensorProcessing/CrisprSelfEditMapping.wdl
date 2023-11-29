@@ -70,7 +70,8 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
 
             # Select the whitelist guide reporter TSV to use for mapping
             if (defined(input_screenIdToWhitelistGuideReporterTsv)){
-                File screen_whitelistGuideReporterTsv = input_screenIdToWhitelistGuideReporterTsv[screenId]
+                Map[String, File] input_screenIdToWhitelistGuideReporterTsv_defined = select_first([input_screenIdToWhitelistGuideReporterTsv])
+                File screen_whitelistGuideReporterTsv = input_screenIdToWhitelistGuideReporterTsv_defined[screenId]
             }
             File selected_whitelistGuideReporterTsv = select_first([screen_whitelistGuideReporterTsv, input_whitelistGuideReporterTsv])
             
@@ -91,15 +92,13 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
         }
 
         Array[File] screen_countResults = GuideCount_ScreenId.count_result
-
-        # TODO: call adata task, pass in the annotations too. Do this after womtool validation
+        Pair[String, Array[File]] screen_countResults_pair = (screenId, screen_countResults)
     }
 
+    Map[String, Array[File]] screen_countResults_map = as_map(screen_countResults_pair)
 
     output {
-        Map[String, File]? output_GuideCount_i5_count_result_map = GuideCount_i5_count_result_map 
-        Map[String, Map[String, File]]? output_GuideCount_i5_Barcode_count_result_nested_map = GuideCount_i5_Barcode_count_result_nested_map
-        Map[String, File]? output_GuideCount_Barcode_count_result_map = GuideCount_Barcode_count_result_map
+        Map[String, Array[File]] output_screen_countResults_map = screen_countResults_map
     }
 
 }

@@ -163,7 +163,7 @@ workflow CrisprSensorPreprocessing_Workflow {
             input_whitelistGuideReporterTsv=input_whitelistGuideReporterTsv,
             input_screenIdToWhitelistGuideReporterTsv=input_screenIdToWhitelistGuideReporterTsv,
             input_screenIdToGuideAnnotationsTsv=input_screenIdToGuideAnnotationsTsv,
-            
+
             input_umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
             input_umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
         
@@ -195,10 +195,6 @@ workflow CrisprSensorPreprocessing_Workflow {
         #
         # Guide Mapping Outputs
         #
-        Map[String, File]? output_GuideCount_i5_count_result_map = mappingWorkflow.output_GuideCount_i5_count_result_map
-        Map[String, Map[String, File]]? output_GuideCount_i5_Barcode_count_result_nested_map = mappingWorkflow.output_GuideCount_i5_Barcode_count_result_nested_map
-        Map[String, File]? output_GuideCount_Barcode_count_result_map = mappingWorkflow.output_GuideCount_Barcode_count_result_map
-
     }
 }
 
