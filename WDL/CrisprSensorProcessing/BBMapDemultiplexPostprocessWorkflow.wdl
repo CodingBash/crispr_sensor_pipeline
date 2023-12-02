@@ -16,8 +16,6 @@ struct DemultiplexedFiles {
     Map[String, IndexPair] demultiplexedFiles
 }
 
-
-
 workflow BBMapDemultiplexRunnerPostprocessWorkflow {
     input {
         Array[File] demultiplexedOutputR1Files

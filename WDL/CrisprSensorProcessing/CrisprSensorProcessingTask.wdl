@@ -72,12 +72,16 @@ task UmiToolsExtractTask {
 
 workflow CrisprSensorPreprocessing_Workflow {
     input {
+        # FOR UMI TOOLS
         File rawFastqR1
         File? rawFastqR2
         String r1U6BarcodeExtractionRegex # TODO: Rename to distinguish between the other REGEX
         String? r24ntBarcodeExtractionRegex # TODO: Rename to distinguish between the other REGEX
         String sampleName
 
+        #
+        #   FOR DEMULTIPLEX
+        #
         File? i5IndexStringTextFile
         Array[String]? i5IndexList
         File? barcodeIndexStringTextFile
@@ -86,12 +90,9 @@ workflow CrisprSensorPreprocessing_Workflow {
         Int i5Hamming 
         Int barcodeHamming
 
-        #OLD
-        File? input_whitelistGuideReporterTsv
-        Map[String, File]? input_i5Only_whitelistGuideReporterTsv
-        Map[String, File]? input_barcodeOnly_whitelistGuideReporterTsv
-        Map[String, Map[String, File]]? input_i5Barcode_whitelistGuideReporterTsv
-        
+        #
+        #   FOR COUNTING
+        #
         #NEW contains the demultiplex to screen ID map
         String? input_screenId
         Map[String, String]? input_i5ToScreenidMap
@@ -190,7 +191,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         #
         #   Demultiplexing Outputs
         #
-        Map[String, Array[AnnotatedSample]] output_screenIdToSampleMap = demultiplexWorkflow.output_screenIdToSampleMap
+        Map[String, Array[Pair[AnnotatedSample, Array[String]]]] output_screenIdToSampleMap = demultiplexWorkflow.output_screenIdToSampleMap
 
         #
         # Guide Mapping Outputs

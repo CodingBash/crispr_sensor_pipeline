@@ -48,7 +48,7 @@ task GuideCount {
 
 workflow CrisprSelfEditMappingOrchestratorWorkflow {
     input {
-        Map[String, Array[AnnotatedSample]] input_screenIdToSampleMap
+        Map[String, Array[Pair[AnnotatedSample, Array[String]]]] input_screenIdToSampleMap
 
         File? input_whitelistGuideReporterTsv
         Map[String, File]? input_screenIdToWhitelistGuideReporterTsv
@@ -64,9 +64,11 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
 
     scatter(input_screenIdToSamplePair in as_pairs(input_screenIdToSampleMap)){
         String screenId = input_screenIdToSamplePair.left
-        Array[AnnotatedSample] screenAnnotatedSamples = input_screenIdToSamplePair.right
+        Array[Pair[AnnotatedSample,Array[String]]] screenAnnotatedSamples = input_screenIdToSamplePair.right
 
-        scatter(annotatedSample in screenAnnotatedSamples){
+        scatter(annotatedSamplePair in screenAnnotatedSamples){
+            AnnotatedSample annotatedSample = annotatedSamplePair.left
+            Array[String] sampleInfoVars = annotatedSamplePair.right
 
             # Select the whitelist guide reporter TSV to use for mapping
             if (defined(input_screenIdToWhitelistGuideReporterTsv)){
@@ -93,6 +95,8 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
 
         Array[File] screen_countResults = GuideCount_ScreenId.count_result
         Pair[String, Array[File]] screen_countResults_pair = (screenId, screen_countResults)
+
+        # TODO: Perform ADATA/BDATA for each screen here! Will use the sampleInfoVars for the sample , Array[Array[String]] sampleInfoVarsScreenList = sampleInfoVars
     }
 
     Map[String, Array[File]] screen_countResults_map = as_map(screen_countResults_pair)
