@@ -196,6 +196,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         #
         # Guide Mapping Outputs
         #
+        Map[String, Array[File]] output_screen_countResults_map = mappingWorkflow.output_screen_countResults_map
     }
 }
 
