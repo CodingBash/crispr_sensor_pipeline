@@ -73,11 +73,15 @@ task UmiToolsExtractTask {
 workflow CrisprSensorPreprocessing_Workflow {
     input {
         # FOR UMI TOOLS
-        File rawFastqR1
+        File? rawFastqR1 # IF 
         File? rawFastqR2
-        String r1U6BarcodeExtractionRegex # TODO: Rename to distinguish between the other REGEX
+        String? r1U6BarcodeExtractionRegex # TODO: Rename to distinguish between the other REGEX
         String? r24ntBarcodeExtractionRegex # TODO: Rename to distinguish between the other REGEX
         String sampleName
+
+        # TO SKIP UMI TOOLS STEP
+        File? umiToolsFastqR1
+		File? umiToolsFastqR2
 
         #
         #   FOR DEMULTIPLEX
@@ -89,6 +93,8 @@ workflow CrisprSensorPreprocessing_Workflow {
         
         Int i5Hamming 
         Int barcodeHamming
+
+        Pair[DemultiplexedFiles, UndeterminedFiles]? input_provided_output_demultiplexedResults
 
         #
         #   FOR COUNTING
@@ -122,20 +128,21 @@ workflow CrisprSensorPreprocessing_Workflow {
 
     # Extract relevant sequences using UMI tools
     # TODO: Once we have the seqspec tool, perhaps that plus the extract task can be moddularized into a new workflow.
-    call UmiToolsExtractTask {
-        input:
-            inputRead1=rawFastqR1,
-            inputRead2=rawFastqR2,
-            r1U6BarcodeExtractionRegex=r1U6BarcodeExtractionRegex,
-            r24ntBarcodeExtractionRegex=r24ntBarcodeExtractionRegex,
-            sampleName=sampleName
+    if(!defined(umiToolsFastqR1)){
+        call UmiToolsExtractTask {
+            input:
+                inputRead1=select_first([rawFastqR1]),
+                inputRead2=rawFastqR2,
+                r1U6BarcodeExtractionRegex=select_first([r1U6BarcodeExtractionRegex]),
+                r24ntBarcodeExtractionRegex=r24ntBarcodeExtractionRegex,
+                sampleName=sampleName
+        }
     }
-	
     # Demultiplex the UMI tools result
     call demultiplex.BBMapDemultiplexOrchestratorWorkflow as demultiplexWorkflow {
         input:
-            inputRead1=UmiToolsExtractTask.outputRead1,
-            inputRead2=UmiToolsExtractTask.outputRead2,
+            inputRead1=select_first([UmiToolsExtractTask.outputRead1, umiToolsFastqR1]),
+            inputRead2=select_first([UmiToolsExtractTask.outputRead2, umiToolsFastqR2]),
             i5IndexStringTextFile=i5IndexStringTextFile,
             i5IndexList=i5IndexList,
             barcodeIndexStringTextFile=barcodeIndexStringTextFile,
@@ -155,23 +162,26 @@ workflow CrisprSensorPreprocessing_Workflow {
             i5ToSampleInfoVarsMap=input_i5ToSampleInfoVarsMap,
             barcodeToSampleInfoVarsMap=input_barcodeToSampleInfoVarsMap,
             i5ToBarcodeToSampleInfoVarsMap=input_i5ToBarcodeToSampleInfoVarsMap,
+
+            provided_output_demultiplexedResults=input_provided_output_demultiplexedResults
     }
 
-    call mapping.CrisprSelfEditMappingOrchestratorWorkflow as mappingWorkflow {
-        input:
-            input_screenIdToSampleMap=demultiplexWorkflow.output_screenIdToSampleMap,
 
-            input_whitelistGuideReporterTsv=input_whitelistGuideReporterTsv,
-            input_screenIdToWhitelistGuideReporterTsv=input_screenIdToWhitelistGuideReporterTsv,
-            input_screenIdToGuideAnnotationsTsv=input_screenIdToGuideAnnotationsTsv,
+    # call mapping.CrisprSelfEditMappingOrchestratorWorkflow as mappingWorkflow {
+    #     input:
+    #         input_screenIdToSampleMap=demultiplexWorkflow.output_screenIdToSampleMap,
 
-            input_umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
-            input_umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
+    #         input_whitelistGuideReporterTsv=input_whitelistGuideReporterTsv,
+    #         input_screenIdToWhitelistGuideReporterTsv=input_screenIdToWhitelistGuideReporterTsv,
+    #         input_screenIdToGuideAnnotationsTsv=input_screenIdToGuideAnnotationsTsv,
+
+    #         input_umiToolsHeaderBarcodeRegex=input_umiToolsHeaderBarcodeRegex,
+    #         input_umiToolsUmiPatternRegex=input_umiToolsUmiPatternRegex,
         
-            input_surrogateHammingThresholdStrict=input_surrogateHammingThresholdStrict,
-            input_barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
-            input_protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
-    }
+    #         input_surrogateHammingThresholdStrict=input_surrogateHammingThresholdStrict,
+    #         input_barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
+    #         input_protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
+    # }
 
     
 	# TODO: Since we have a MAP, perhaps someone can input a TSV of the sample sheet, then we can return a final table with the samples attached. Or we can return a table without the sample sheet. Make this into another workflow for preprocessing all outputs
@@ -180,13 +190,13 @@ workflow CrisprSensorPreprocessing_Workflow {
         #
         #   UMI Tools Outputs
         #
-        File umiToolsExtractedOutputRead1 = UmiToolsExtractTask.outputRead1
+        File? umiToolsExtractedOutputRead1 = UmiToolsExtractTask.outputRead1
         File? umiToolsExtractedOutputRead2 = UmiToolsExtractTask.outputRead2
-        File umiToolsExtractedOutputFilteredRead1=UmiToolsExtractTask.outputFilteredRead1
+        File? umiToolsExtractedOutputFilteredRead1=UmiToolsExtractTask.outputFilteredRead1
         File? umiToolsExtractedOutputFilteredRead2=UmiToolsExtractTask.outputFilteredRead2
-        File umiToolsExtractTaskLogFile=UmiToolsExtractTask.logFile
-        Float umiToolsExtractOutputRead1ReadCount = UmiToolsExtractTask.outputRead1ReadCount
-        Float umiToolsExtractOutputFilteredRead1ReadCount = UmiToolsExtractTask.outputFilteredRead1ReadCount
+        File? umiToolsExtractTaskLogFile=UmiToolsExtractTask.logFile
+        Float? umiToolsExtractOutputRead1ReadCount = UmiToolsExtractTask.outputRead1ReadCount
+        Float? umiToolsExtractOutputFilteredRead1ReadCount = UmiToolsExtractTask.outputFilteredRead1ReadCount
 
         #
         #   Demultiplexing Outputs
@@ -196,7 +206,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         #
         # Guide Mapping Outputs
         #
-        Map[String, Array[File]] output_screen_countResults_map = mappingWorkflow.output_screen_countResults_map
+        #Map[String, Array[Pair[Pair[AnnotatedSample,Array[String]], File]]] output_screen_countResults_map = mappingWorkflow.output_screen_countResults_map
     }
 }
 

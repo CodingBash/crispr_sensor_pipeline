@@ -40,12 +40,12 @@ task GuideCount {
     >>>
 
     output {
-        File count_result = "result_.pickle"
+        File count_result "result_.pickle"
     }
 
     runtime {
-        docker: "pinellolab/crispr_selfedit_mapping:release-0.0.108a"
-         memory: "4G"
+        docker: "pinellolab/crispr_selfedit_mapping:release-0.0.114"
+        memory: "32G"
     }
 }
 
@@ -97,9 +97,11 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
                         barcodeHammingThresholdStrict=input_barcodeHammingThresholdStrict,
                         protospacerHammingThresholdStrict=input_protospacerHammingThresholdStrict
                 }
+
+                Pair[Pair[AnnotatedSample,Array[String]], File] annotated_count_result = (annotatedSamplePair, GuideCount_ScreenId.count_result)
             }
-            Array[File] screen_countResults = GuideCount_ScreenId.count_result
-            Pair[String, Array[File]] screen_countResults_pair = (screenId, screen_countResults)
+            Array[Pair[Pair[AnnotatedSample,Array[String]], File]] annotated_count_result_list = annotated_count_result
+            Pair[String, Array[Pair[Pair[AnnotatedSample,Array[String]], File]]] screen_countResults_pair = (screenId, annotated_count_result_list)
         }
 
         
@@ -107,10 +109,10 @@ workflow CrisprSelfEditMappingOrchestratorWorkflow {
         # TODO: Perform ADATA/BDATA for each screen here! Will use the sampleInfoVars for the sample , Array[Array[String]] sampleInfoVarsScreenList = sampleInfoVars
     }
 
-    Map[String, Array[File]] screen_countResults_map = as_map(select_all(screen_countResults_pair))
+    Map[String, Array[Pair[Pair[AnnotatedSample,Array[String]], File]]] screen_countResults_map = as_map(select_all(screen_countResults_pair))
 
     output {
-        Map[String, Array[File]] output_screen_countResults_map = screen_countResults_map
+        Map[String, Array[Pair[Pair[AnnotatedSample,Array[String]], File]]] output_screen_countResults_map = screen_countResults_map
     }
 
 }
