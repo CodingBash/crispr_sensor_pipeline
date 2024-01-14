@@ -40,7 +40,7 @@ task GuideCount {
     >>>
 
     output {
-        File count_result "result_.pickle"
+        File count_result = "result_.pickle"
     }
 
     runtime {
