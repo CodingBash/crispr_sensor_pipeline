@@ -94,8 +94,6 @@ workflow CrisprSensorPreprocessing_Workflow {
         Int i5Hamming 
         Int barcodeHamming
 
-        Pair[DemultiplexedFiles, UndeterminedFiles]? input_provided_output_demultiplexedResults
-
         #
         #   FOR COUNTING
         #
@@ -137,35 +135,61 @@ workflow CrisprSensorPreprocessing_Workflow {
                 r24ntBarcodeExtractionRegex=r24ntBarcodeExtractionRegex,
                 sampleName=sampleName
         }
+    
+        # Demultiplex the UMI tools result
+        call demultiplex.BBMapDemultiplexOrchestratorWorkflow as demultiplexWorkflowUmiToolsPerformed {
+            input:
+                inputRead1=UmiToolsExtractTask.outputRead1,
+                inputRead2=UmiToolsExtractTask.outputRead2,
+                i5IndexStringTextFile=i5IndexStringTextFile,
+                i5IndexList=i5IndexList,
+                barcodeIndexStringTextFile=barcodeIndexStringTextFile,
+                barcodeIndexList=barcodeIndexList,
+                i5Hamming=i5Hamming,
+                barcodeHamming=barcodeHamming,
+                sampleName=sampleName,
+
+                # Mapping from indices to screen name
+                screenId=input_screenId,
+                i5ToScreenidMap=input_i5ToScreenidMap,
+                barcodeToScreenidMap=input_barcodeToScreenidMap,
+                i5ToBarcodeToScreenidMap=input_i5ToBarcodeToScreenidMap,
+
+                # Mapping from indices to sample annotations
+                sampleInfoVars=input_sampleInfoVars,
+                i5ToSampleInfoVarsMap=input_i5ToSampleInfoVarsMap,
+                barcodeToSampleInfoVarsMap=input_barcodeToSampleInfoVarsMap,
+                i5ToBarcodeToSampleInfoVarsMap=input_i5ToBarcodeToSampleInfoVarsMap
+        }
+    } 
+    if(defined(umiToolsFastqR1)){
+        call demultiplex.BBMapDemultiplexOrchestratorWorkflow as demultiplexWorkflowUmiToolsSkipped {
+            input:
+                inputRead1=select_first([umiToolsFastqR1]),
+                inputRead2=umiToolsFastqR2,
+                i5IndexStringTextFile=i5IndexStringTextFile,
+                i5IndexList=i5IndexList,
+                barcodeIndexStringTextFile=barcodeIndexStringTextFile,
+                barcodeIndexList=barcodeIndexList,
+                i5Hamming=i5Hamming,
+                barcodeHamming=barcodeHamming,
+                sampleName=sampleName,
+
+                # Mapping from indices to screen name
+                screenId=input_screenId,
+                i5ToScreenidMap=input_i5ToScreenidMap,
+                barcodeToScreenidMap=input_barcodeToScreenidMap,
+                i5ToBarcodeToScreenidMap=input_i5ToBarcodeToScreenidMap,
+
+                # Mapping from indices to sample annotations
+                sampleInfoVars=input_sampleInfoVars,
+                i5ToSampleInfoVarsMap=input_i5ToSampleInfoVarsMap,
+                barcodeToSampleInfoVarsMap=input_barcodeToSampleInfoVarsMap,
+                i5ToBarcodeToSampleInfoVarsMap=input_i5ToBarcodeToSampleInfoVarsMap
+        }
     }
-    # Demultiplex the UMI tools result
-    call demultiplex.BBMapDemultiplexOrchestratorWorkflow as demultiplexWorkflow {
-        input:
-            inputRead1=select_first([UmiToolsExtractTask.outputRead1, umiToolsFastqR1]),
-            inputRead2=select_first([UmiToolsExtractTask.outputRead2, umiToolsFastqR2]),
-            i5IndexStringTextFile=i5IndexStringTextFile,
-            i5IndexList=i5IndexList,
-            barcodeIndexStringTextFile=barcodeIndexStringTextFile,
-            barcodeIndexList=barcodeIndexList,
-            i5Hamming=i5Hamming,
-            barcodeHamming=barcodeHamming,
-            sampleName=sampleName,
 
-            # Mapping from indices to screen name
-            screenId=input_screenId,
-            i5ToScreenidMap=input_i5ToScreenidMap,
-            barcodeToScreenidMap=input_barcodeToScreenidMap,
-            i5ToBarcodeToScreenidMap=input_i5ToBarcodeToScreenidMap,
-
-            # Mapping from indices to sample annotations
-            sampleInfoVars=input_sampleInfoVars,
-            i5ToSampleInfoVarsMap=input_i5ToSampleInfoVarsMap,
-            barcodeToSampleInfoVarsMap=input_barcodeToSampleInfoVarsMap,
-            i5ToBarcodeToSampleInfoVarsMap=input_i5ToBarcodeToSampleInfoVarsMap,
-
-            provided_output_demultiplexedResults=input_provided_output_demultiplexedResults
-    }
-
+    Map[String, Array[Pair[AnnotatedSample, Array[String]]]] output_screenIdToSampleMap_final = select_first([demultiplexWorkflowUmiToolsSkipped.output_screenIdToSampleMap, demultiplexWorkflowUmiToolsPerformed.output_screenIdToSampleMap])
 
     # call mapping.CrisprSelfEditMappingOrchestratorWorkflow as mappingWorkflow {
     #     input:
@@ -201,7 +225,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         #
         #   Demultiplexing Outputs
         #
-        Map[String, Array[Pair[AnnotatedSample, Array[String]]]] output_screenIdToSampleMap = demultiplexWorkflow.output_screenIdToSampleMap
+        Map[String, Array[Pair[AnnotatedSample, Array[String]]]] output_screenIdToSampleMap = output_screenIdToSampleMap_final
 
         #
         # Guide Mapping Outputs

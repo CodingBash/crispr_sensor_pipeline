@@ -79,7 +79,7 @@ task Crispresso2BatchSingleGuideTask {
 
     output {
         File completeOutputZip = "output.zip"
-		File = "output/CRISPRessoBatch_on_${outputName}/"
+		File = "output/CRISPRessoBatch_on_${outputName}/....."
 	}
 
 	runtime {

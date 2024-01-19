@@ -96,9 +96,6 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
         Map[String, Array[String]]? i5ToSampleInfoVarsMap
         Map[String, Array[String]]? barcodeToSampleInfoVarsMap
         Map[String, Map[String, Array[String]]]? i5ToBarcodeToSampleInfoVarsMap
-
-        # Provided i5index demultiplex
-        Pair[DemultiplexedFiles, UndeterminedFiles]? provided_output_demultiplexedResults
     }
 
 
@@ -136,32 +133,31 @@ workflow BBMapDemultiplexOrchestratorWorkflow {
     # If i5 indices available, demultiplex the i5
     #
     if (i5IndexAvailable) {
-        if(!defined(provided_output_demultiplexedResults)){
-            # Perform i5 demultiplex
-            call BBMapDemultiplexRunnerTask as BBMapDemultiplexRunnerTask_i5 {
-                input:
-                        processedRead1=inputRead1,
-                        processedRead2=inputRead2,
-                        indexStringList=select_first([i5IndexList, i5IndexStringTextFileList]),
-                        delimiter="\\\\+",
-                        column=2,
-                        hamming=i5Hamming,
-                        demultiplexedOutputFilenamePattern=demultiplexedI5OutputFilenamePattern,
-                        demultiplexedUndeterminedFilenamePattern=demultiplexedI5UndeterminedFilenamePattern
-            }
-            
-            # Organize the i5 results into the DemultiplexResult struct
-            call postprocess.BBMapDemultiplexRunnerPostprocessWorkflow as BBMapDemultiplexRunnerPostprocessWorkflow_i5 {
-                input:
-                    demultiplexedOutputR1Files=select_first([BBMapDemultiplexRunnerTask_i5.demultiplexedOutputR1Files]),
-                    demultiplexedOutputR2Files=BBMapDemultiplexRunnerTask_i5.demultiplexedOutputR2Files,
-                    undeterminedR1File= select_first([BBMapDemultiplexRunnerTask_i5.undeterminedOutputR1File]),
-                    undeterminedR2File= BBMapDemultiplexRunnerTask_i5.undeterminedOutputR2File,
-                    rootDemultiplexedOutputFilenamePattern=rootDemultiplexedI5OutputFilenamePattern
-            }
+        # Perform i5 demultiplex
+        call BBMapDemultiplexRunnerTask as BBMapDemultiplexRunnerTask_i5 {
+            input:
+                    processedRead1=inputRead1,
+                    processedRead2=inputRead2,
+                    indexStringList=select_first([i5IndexList, i5IndexStringTextFileList]),
+                    delimiter="\\\\+",
+                    column=2,
+                    hamming=i5Hamming,
+                    demultiplexedOutputFilenamePattern=demultiplexedI5OutputFilenamePattern,
+                    demultiplexedUndeterminedFilenamePattern=demultiplexedI5UndeterminedFilenamePattern
         }
         
-        Pair[DemultiplexedFiles, UndeterminedFiles] demultiplexedResult_i5 = select_first([BBMapDemultiplexRunnerPostprocessWorkflow_i5.output_demultiplexedResults, provided_output_demultiplexedResults])
+        # Organize the i5 results into the DemultiplexResult struct
+        call postprocess.BBMapDemultiplexRunnerPostprocessWorkflow as BBMapDemultiplexRunnerPostprocessWorkflow_i5 {
+            input:
+                demultiplexedOutputR1Files=select_first([BBMapDemultiplexRunnerTask_i5.demultiplexedOutputR1Files]),
+                demultiplexedOutputR2Files=BBMapDemultiplexRunnerTask_i5.demultiplexedOutputR2Files,
+                undeterminedR1File= select_first([BBMapDemultiplexRunnerTask_i5.undeterminedOutputR1File]),
+                undeterminedR2File= BBMapDemultiplexRunnerTask_i5.undeterminedOutputR2File,
+                rootDemultiplexedOutputFilenamePattern=rootDemultiplexedI5OutputFilenamePattern
+        }
+        
+        
+        Pair[DemultiplexedFiles, UndeterminedFiles] demultiplexedResult_i5 = BBMapDemultiplexRunnerPostprocessWorkflow_i5.output_demultiplexedResults
         
         #
         # If barcode indices available, demultiplex the barcode

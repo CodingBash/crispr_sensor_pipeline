@@ -62,6 +62,8 @@ workflow CrisprSensorPreprocessing_Workflow {
         # Guide Mapping Outputs
         #
         Map[String, Array[Pair[Pair[AnnotatedSample,Array[String]], File]]] output_screen_countResults_map = mappingWorkflow.output_screen_countResults_map
+        Map[String, Array[Pair[Pair[AnnotatedSample,Array[String]], Map[String, Float]]]] output_screen_editingEfficiencies_map = mappingWorkflow.output_screen_editingEfficiencies_map
+        Map[String, Array[Pair[Pair[AnnotatedSample,Array[String]], Map[String, File]]]] output_screen_supplementaryFiles_map = mappingWorkflow.output_screen_supplementaryFiles_map
     }
 }
 
