@@ -24,6 +24,42 @@ struct CrispressoGuideInformation {
 }
 
 
+task CreateCrispresso2BatchPooledSettingsFile {
+    input {
+
+    }
+
+    command <<<
+
+    >>>
+
+    output {
+        File settingsFile
+    }
+    
+    runtime {
+        docker: "datajoint/miniconda3:22.11.1-py3.8-debian-270a9fc"
+    }
+}
+
+task CreateCrispresso2BatchSingleGuideSettingsFile {
+    input {
+
+    }
+
+    command <<<
+
+    >>>
+
+    output {
+        File settingsFile
+    }
+    
+    runtime {
+        docker: "datajoint/miniconda3:22.11.1-py3.8-debian-270a9fc"
+    }
+}
+
 task Crispresso2BatchPooledTask {
     input {
         String sampleName
@@ -42,6 +78,8 @@ task Crispresso2BatchPooledTask {
 		docker: "pinellolab/crispresso2:v2.2.14"
 	}
 }
+
+
 
 task Crispresso2BatchSingleGuideTask {
     input {
@@ -75,11 +113,12 @@ task Crispresso2BatchSingleGuideTask {
         --plot_window_size ~{singleGuideWindowSize} --base_editor_output -w {quantificationWindow} -bo "output/"
 
         # ZIP output
+
     >>>
 
     output {
         File completeOutputZip = "output.zip"
-		File = "output/CRISPRessoBatch_on_${outputName}/....."
+		File = "output/CRISPRessoBatch_on_${outputName}_/....."
 	}
 
 	runtime {
@@ -121,6 +160,7 @@ workflow CrisprMillipedeDirect_Workflow {
     #
     # RUN POOLED MODE ON POOLED SAMPLES
     #
+    
 
     # Get the set of pooled samples 
     scatter(crispressoBatchSampleSettings in crispressoBatchSampleSettingsList){
