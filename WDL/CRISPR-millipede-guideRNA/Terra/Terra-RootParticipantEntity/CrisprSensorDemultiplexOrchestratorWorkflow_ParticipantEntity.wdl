@@ -11,7 +11,7 @@ struct AnnotatedSample {
     File? read2
 }
 
-workflow BBMapDemultiplexOrchestratorWorkflow {
+workflow BBMapDemultiplexOrchestratorWorkflowParticipantEntity {
     
     input {
         # SPECIFIC READS TO DEMULTIPLEX

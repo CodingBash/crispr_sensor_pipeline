@@ -3,7 +3,7 @@ version development
 import "https://api.firecloud.org/ga4gh/v1/tools/pinellolab:UmiToolsExtractTask/versions/3/plain-WDL/descriptor" as umi_tools_extract
 import "https://api.firecloud.org/ga4gh/v1/tools/pinellolab:BBMapDemultiplexOrchestratorWorkflow/versions/6/plain-WDL/descriptor" as demultiplex
 
-workflow CrisprMillipedeGuideDemultiplex {
+workflow CrisprMillipedeGuideDemultiplexParticipantEntity {
     input {
         # UMI TOOLS INPUT
         File? rawFastqR1 

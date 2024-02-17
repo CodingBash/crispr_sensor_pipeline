@@ -1,9 +1,9 @@
 version development
 
 import "https://api.firecloud.org/ga4gh/v1/tools/pinellolab:BBMapDemultiplexOrchestratorWorkflow/versions/6/plain-WDL/descriptor" as demultiplex
-import "https://api.firecloud.org/ga4gh/v1/tools/pinellolab:CrisprSelfEditMappingOrchestratorWorkflow/versions/4/plain-WDL/descriptor" as mapping
+import "https://api.firecloud.org/ga4gh/v1/tools/pinellolab:CrisprSelfEditMappingOrchestratorWorkflow/versions/5/plain-WDL/descriptor" as mapping
 
-workflow CrisprSensorPreprocessing_Workflow {
+workflow CrisprSensorPreprocessingWorkflow {
     input {
         # DEMULTIPLEX INPUT SAMPLES
         Map[String, Array[Pair[AnnotatedSample, Array[String]]]] output_screenIdToSampleMap
@@ -25,7 +25,7 @@ workflow CrisprSensorPreprocessing_Workflow {
         Int? input_protospacerHammingThresholdStrict
 
         # RUNTIME PARAMS
-        String guideMappingTaskDockerImage = "pinellolab/crispr_selfedit_mapping:release-0.0.140"
+        String guideMappingTaskDockerImage = "pinellolab/crispr_selfedit_mapping:release-0.0.142"
         Int guideMappingTaskPreemptible = 1
         Int guideMappingTaskDiskGB = 10
         Int guideMappingTaskMemoryGB = 2
