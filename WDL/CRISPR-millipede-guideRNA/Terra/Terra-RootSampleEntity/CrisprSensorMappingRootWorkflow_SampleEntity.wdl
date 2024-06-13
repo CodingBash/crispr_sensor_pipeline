@@ -1,6 +1,6 @@
 version development
 
-import "https://api.firecloud.org/ga4gh/v1/tools/pinellolab:CrisprSensorGuideCountTask/versions/2/plain-WDL/descriptor" as count
+import "https://api.firecloud.org/ga4gh/v1/tools/pinellolab:CrisprSensorGuideCountTask/versions/3/plain-WDL/descriptor" as count
 
 workflow CrisprSelfEditMappingOrchestratorWorkflowSampleEntity {
     input {
@@ -63,7 +63,10 @@ workflow CrisprSelfEditMappingOrchestratorWorkflowSampleEntity {
     "surrogate_trinucleotide_mutational_signature": GuideCount_ScreenId.surrogate_trinucleotide_mutational_signature,
     "surrogate_trinucleotide_positional_signature": GuideCount_ScreenId.surrogate_trinucleotide_positional_signature,
     "whitelist_guide_reporter_df": GuideCount_ScreenId.whitelist_guide_reporter_df,
-    "count_series_result": GuideCount_ScreenId.count_series_result
+    "count_series_result": GuideCount_ScreenId.count_series_result,
+    "observed_guide_reporter_umi_counts_inferred": GuideCount_ScreenId.observed_guide_reporter_umi_counts_inferred,
+    "quality_control_result": GuideCount_ScreenId.quality_control_result,
+    "count_input": GuideCount_ScreenId.count_input
     }
 
     File count_result = GuideCount_ScreenId.count_result

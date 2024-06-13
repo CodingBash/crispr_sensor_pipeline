@@ -12,49 +12,17 @@ task CrisprSensorGuideCountTask {
         Int? barcodeHammingThresholdStrict
         Int? protospacerHammingThresholdStrict
 
-        # Constants for calculating resources
-        Int estimatedFastQSpaceMultiplier = 10
-        Int estimatedeMemoryBuffer = 2
-        Int estimatedDiskGbBuffer = 5
-        Int estimatedDockerGbSize = 10
-        Int coresPerGbReads = 20
-
-        # Avoid exorbitant resources by setting max resource limit
-        Int maxDiskSpaceGB = 500
-        Int maxMemoryGB = 50
-        Int maxCores = 50
-
-        # Optionally provide explicit resource amounts
-        Int? diskGB
-        Int? memoryGB
-        Int? cpus
-
-        # Provide other resource specifications
         String dockerImage = "pinellolab/crispr_selfedit_mapping:release-0.0.142"
         Int preemptible = 1
+        Int diskGB = 10
+        Int memoryGB = 2
         Int maxRetries = 0
         String diskType = "HDD"
+        Int cpus = 1
     }
-
-    Float fastQSize = size(countInputRead1, "GB") + size(countInputRead2, "GB")
-    Int estimatedDiskGB = ceil(estimatedDockerGbSize + fastQSize + (fastQSize * estimatedFastQSpaceMultiplier) + estimatedDiskGbBuffer)
-    Int specifiedDiskGB = min(select_first([diskGB, estimatedDiskGB]), maxDiskSpaceGB)
-    
-    Int estimatedMemoryGB = ceil((fastQSize * estimatedFastQSpaceMultiplier) + estimatedeMemoryBuffer)
-    Int specifiedMemoryGB = min(select_first([memoryGB, estimatedMemoryGB]), maxMemoryGB)
-
-    Int estimatedCoresNeeded = ceil(coresPerGbReads * size(countInputRead1, "GB"))
-    Int specifiedCores = min(select_first([cpus, estimatedCoresNeeded]), maxCores)
-
 
     command <<<
         python <<CODE
-
-        print("Specified Disk (GB): ~{specifiedDiskGB}")
-        print("Specified Memory (GB): ~{specifiedMemoryGB}")
-        print("Specified Cores: ~{specifiedCores}")
-        print("Specified Disk Type: ~{diskType}")
-        print("Specified Docker: ~{dockerImage}")
 
         import crispr_ambiguous_mapping
         import pandas as pd
@@ -73,9 +41,9 @@ task CrisprSensorGuideCountTask {
             cores=~{cpus})
 
         
-        match_set_whitelist_reporter_observed_sequence_counter_series_results = crispr_ambiguous_mapping.processing.get_matchset_alleleseries(result.observed_guide_reporter_umi_counts_inferred, "protospacer_match_surrogate_match_barcode_match", contains_surrogate=result.count_input.contains_surrogate, contains_barcode=result.count_input.contains_barcode, contains_umi=result.count_input.contains_umi) 
-        mutations_results = crispr_ambiguous_mapping.processing.get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_series_results, whitelist_reporter_df=whitelist_guide_reporter_df, contains_surrogate=result.count_input.contains_surrogate, contains_barcode=result.count_input.contains_barcode) 
-        linked_mutation_counters = crispr_ambiguous_mapping.processing.tally_linked_mutation_count_per_sequence(mutations_results=mutations_results, contains_surrogate = result.count_input.contains_surrogate, contains_barcode = result.count_input.contains_barcode)
+        match_set_whitelist_reporter_observed_sequence_counter_series_results = crispr_ambiguous_mapping.processing.get_matchset_alleleseries(result.observed_guide_reporter_umi_counts_inferred, "protospacer_match_surrogate_match_barcode_match", contains_surrogate=True, contains_barcode=True, contains_umi=True) # TODO: HARDCODED contains_*- eventually this should be within the result object
+        mutations_results = crispr_ambiguous_mapping.processing.get_mutation_profile(match_set_whitelist_reporter_observed_sequence_counter_series_results, whitelist_reporter_df=whitelist_guide_reporter_df, contains_surrogate=True, contains_barcode=True) # TODO: HARDCODED - eventually this should be within the result object
+        linked_mutation_counters = crispr_ambiguous_mapping.processing.tally_linked_mutation_count_per_sequence(mutations_results=mutations_results, contains_surrogate = True, contains_barcode = True)# TODO: HARDCODED - eventually this should be within the result object
         crispr_ambiguous_mapping.visualization.plot_mutation_count_histogram(linked_mutation_counters.protospacer_total_mutation_counter, filename="protospacer_total_mutation_histogram.png")
         crispr_ambiguous_mapping.visualization.plot_mutation_count_histogram(linked_mutation_counters.surrogate_total_mutation_counter, filename="surrogate_total_mutation_histogram.png")
         crispr_ambiguous_mapping.visualization.plot_mutation_count_histogram(linked_mutation_counters.barcode_total_mutation_counter, filename="barcode_total_mutation_histogram.png")
@@ -94,16 +62,8 @@ task CrisprSensorGuideCountTask {
         crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "mutations_results", py_object = mutations_results, date_string="")
         crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "linked_mutation_counters", py_object = linked_mutation_counters, date_string="")
         crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "whitelist_guide_reporter_df", py_object = whitelist_guide_reporter_df, date_string="")
-
-        
-        # Store the complete count result object. This will be a very large object
         crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "result", py_object = result, date_string="")
-        
-        # Store the components of the result object, so that the user can load the information as needed
         crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "count_series_result", py_object = result.all_match_set_whitelist_reporter_counter_series_results, date_string="")
-        crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "observed_guide_reporter_umi_counts_inferred", py_object = result.observed_guide_reporter_umi_counts_inferred, date_string="")
-        crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "quality_control_result", py_object = result.quality_control_result, date_string="")
-        crispr_ambiguous_mapping.utility.save_or_load_pickle("./", "count_input", py_object = result.count_input, date_string="")
         
         CODE
     >>>
@@ -127,17 +87,14 @@ task CrisprSensorGuideCountTask {
         File whitelist_guide_reporter_df = "whitelist_guide_reporter_df_.pickle"
         File count_result = "result_.pickle"
         File count_series_result = "count_series_result_.pickle"
-        File observed_guide_reporter_umi_counts_inferred = "observed_guide_reporter_umi_counts_inferred_.pickle"
-        File quality_control_result = "quality_control_result_.pickle"
-        File count_input = "count_input_.pickle"
     }
 
     runtime {
         docker: "${dockerImage}"
         preemptible: "${preemptible}"
         maxRetries: "${maxRetries}"
-        memory: "${specifiedMemoryGB} GB"
-        disks: "local-disk ${specifiedDiskGB} ${diskType}"
-        cpu: "${specifiedCores}"
+        memory: "${memoryGB} GB"
+        disks: "local-disk ${diskGB} ${diskType}"
+        cpu: "${cpus}"
     }
 }
